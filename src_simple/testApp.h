@@ -12,9 +12,6 @@
 #include <Eigen\Cholesky>
 #include <Eigen\Geometry>
 #include <Eigen\LU>
-//#include <algorithm>
-// uncomment this to read from two kinects simultaneously
-//#define USE_TWO_KINECTS
 
 struct short2{
 	short tsdf;
@@ -66,13 +63,6 @@ public:
 	HANDLE depthStreamHandle;
 	INuiSensor *m_nui;
 	
-	//ofxCvColorImage colorImg;
-	//
-	//ofxCvGrayscaleImage grayImage; // grayscale depth image
-	//ofxCvGrayscaleImage grayThreshNear; // the near thresholded image
-	//ofxCvGrayscaleImage grayThreshFar; // the far thresholded image
-	//
-	//ofxCvContourFinder contourFinder;
 	bool bKinectInitSucessful;
 	bool bThreshWithOpenCV;
 	bool bDrawPointCloud;
@@ -115,6 +105,7 @@ public:
 
 	ofMatrix3x3 the_K_cam;
 	ofMatrix3x3 invKcam;
+
 	ofVec3f normalmap_orignal[325000];
 	ofVec3f normalmap_downonce[90000];
 	ofVec3f normalmap_downtwice[20000];
@@ -129,8 +120,6 @@ public:
 	bool isvalid_orignal[325000];
 	//bool isvalid_downonce[90000];
 	//bool isvalid_downtwice[20000];
-
-	//vector<ofVec3f> my_points;
 };
 inline ofVec3f testApp::nmmul(const ofMatrix3x3 &mat1,const ofVec3f &mat2) const{
 

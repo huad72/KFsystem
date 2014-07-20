@@ -48,7 +48,7 @@ public:
 	ofVec3f getTheGlobalPostion(const ofVec3f &gPoint);
 	float getTsdfData(const int x,const int y,const int z);
 	float triLinary(const ofVec3f &point);
-	void compute_raycast();
+	void compute_raycast(const ofMatrix4x4 &tMatrix);
 	// ICP计算
 	void compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &newTmatrix);
 	void compute_icp(float b,const ofVec3f &spacePoint,const ofVec3f &spaceNormal);
@@ -87,6 +87,8 @@ public:
 	ofMesh mesh;
 
 	// 我添加的变量
+
+	// 测试用变量
 	bool test;
 	bool test2;
 	bool test3;
@@ -95,6 +97,11 @@ public:
 	int photonum;// 拍摄照片
 	int ss[245][325];
 	int finalPointNum;
+
+	// 显示控制
+	int x_back;
+	int y_back;
+	int z_back;
 
 	ofVec3f m_points[325000];
 

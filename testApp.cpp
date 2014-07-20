@@ -233,10 +233,10 @@ void testTheIcp(const ofVec3f* pointsmap,ofVec3f* pointsmap_f)
 			{
 				ofVec4f newp = ofVec4f(pointsmap[num].x,pointsmap[num].y,pointsmap[num].z,1);
 				ofVec4f newn = tm*newp;
-				//pointsmap_f[num].x = newn.x;
-				//pointsmap_f[num].y = newn.y;
-				//pointsmap_f[num].z = newn.z;
-				pointsmap_f[num].y += 0.1;
+				pointsmap_f[num].x = newn.x;
+				pointsmap_f[num].y = newn.y;
+				pointsmap_f[num].z = newn.z;
+				//pointsmap_f[num].y += 0.1;
 				//cout<<i<<endl;
 			}
 		}
@@ -341,14 +341,19 @@ void testApp::setup() {
 	clock_t t1=clock();
 	//readglobalfile("data.txt",tsdfData);
 	//readglobalfile("0.txt",depth_float);
-	readFileToArry(pointsmap_orignal,"testdata1.txt");
+	//readFileToArry(pointsmap_orignal,"testdata1.txt");
 	//readFileToArry(pointsmap_final,"testdata1.txt");
-	testTheIcp(pointsmap_orignal,pointsmap_final);
+	//testTheIcp(pointsmap_orignal,pointsmap_final);
 	clock_t t2=clock();
 	double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
 	//cout<<ti<<endl;
 
 	bKinectInitSucessful = true;
+
+	// 摄像机位置控制
+	x_back = 0;
+	y_back = 0;
+	z_back = -650;
 FINAL:
 	if(FAILED(hr))
 	{
@@ -557,8 +562,8 @@ void testApp::compute_normal(const ofVec3f *vec,const int rows,const int cols,of
 void testApp::compute_points(const cv::Mat &depthimage,const int rows,const int cols,ofVec3f* pointsmap)
 {
 	// 存入文件
-	ofstream out;
-	out.open("testdata6.txt",ios::trunc);
+	//ofstream out;
+	//out.open("testdata6.txt",ios::trunc);
 
 	ofVec3f res(0);
 	ofVec3f pos(0,0,1);
@@ -593,12 +598,12 @@ void testApp::compute_points(const cv::Mat &depthimage,const int rows,const int 
 				pointsmap[num2]=ofVec3f(0.0,0.0,0.0);
 			}
 			// 数据写入文件
-			if(pointsmap[num2].z<1.8)
-				out<<pointsmap[num2].x<<" "<<pointsmap[num2].y<<" "<<pointsmap[num2].z<<" ";
-			else
-			{
-				out<<0<<" "<<0<<" "<<0<<" ";
-			}
+			//if(pointsmap[num2].z<1.8)
+			//	out<<pointsmap[num2].x<<" "<<pointsmap[num2].y<<" "<<pointsmap[num2].z<<" ";
+			//else
+			//{
+			//	out<<0<<" "<<0<<" "<<0<<" ";
+			//}
 
 			num2++;
 			if(num>0)
@@ -624,7 +629,7 @@ void testApp::compute_points(const cv::Mat &depthimage,const int rows,const int 
 	//cout<<ti<<endl;
 	//cout<<maxnum<<" "<<minnum<<" "<<maxnum-minnum<<endl;
 
-	out.close();
+	//out.close();
 
 }
 //--------------------------tsdf计算-----------------------------
@@ -756,7 +761,7 @@ float getmaxtime(const ofVec3f &dirc,const ofVec3f &orignal)
 	float maxz = (dirc.z>0?3.96875-orignal.z:-orignal.z)/dirc.z;
 	return min(min(maxx,maxy),maxz);
 }
-void testApp::compute_raycast()
+void testApp::compute_raycast(const ofMatrix4x4 &tMatrix)
 {
 	ofVec3f LightPosition(0,0,1000);
 	cv::Mat rayimage(KINECT_HEIGHT,KINECT_WIDTH,CV_8UC1);
@@ -777,7 +782,8 @@ void testApp::compute_raycast()
 		normalmap_final[num] = ofVec3f(0,0,0);
 		ofVec3f rayChange =nmmul(invKcam,ofVec3f(i,j,1));
 		///临时变换，以后做T变换
-		rayChange.y *= -1;
+		//rayChange.y *= -1;
+		rayChange = tMatrix * rayChange;
 
 		ofVec3f rayOne = 0.5*rayChange - startPosition;
 		ofVec3f rayTwo = 1.0*rayChange - startPosition;
@@ -964,14 +970,19 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 		nowTmatrix = newTmatrix;
 		//cout<<"z is big than 0ne"<<endl;
 	}
-	ofMatrix4x4 invPreT = nowTmatrix.getInverse();
-	//ofMatrix4x4 invPreT = preTmatrix.getInverse();
+	//ofMatrix4x4 invPreT = nowTmatrix.getInverse();
+	ofMatrix4x4 invPreT = preTmatrix.getInverse();
 	ofMatrix3x3 nowRmatrix = getRotationMatrix(nowTmatrix);
 	ofMatrix3x3 preRmatrix = getRotationMatrix(preTmatrix);
 
 	int i=0,j=0;
 	int dnum = 0;
 	double total_b = 0;
+	double total_bb = 0;
+
+	final_A = Eigen::MatrixXf::Zero(6,6);
+	final_B = Eigen::MatrixXf::Zero(6,1);
+
 	// 找到对应点对
 	for(j=0;j<KINECT_HEIGHT;j++)
 	for(i=0;i<KINECT_WIDTH;i++)
@@ -996,10 +1007,10 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 			if(pointsmap_final[num_p].z>0)
 			{
 				ofVec4f pointPre = ofVec4f(pointsmap_final[num_p].x,pointsmap_final[num_p].y,pointsmap_final[num_p].z,1);
-				//ofVec4f spacePointPre = pointPre;
-				ofVec4f spacePointPre = preTmatrix*pointPre;
-				//ofVec3f spacenormalPre = normalmap_final[num_p];
-				ofVec3f spacenormalPre = nmmul(preRmatrix,normalmap_final[num_p]);
+				ofVec4f spacePointPre = pointPre;
+				//ofVec4f spacePointPre = preTmatrix*pointPre;
+				ofVec3f spacenormalPre = normalmap_final[num_p];
+				//ofVec3f spacenormalPre = nmmul(preRmatrix,normalmap_final[num_p]);
 				float pointDistance = spacePointNow.distance(spacePointPre);
 				float pointAngle = spacenormalNow.angle(spacenormalPre);
 				if(pointDistance<=THRESHOLD_D&&pointAngle<=THRESHOLD_A)
@@ -1012,18 +1023,22 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 					//	cout<<spacePointNow<<endl;
 					//	cout<<spacePointPre<<endl;
 					//}
+					//spacePointNow = newTmatrix * spacePointNow;
 					ofVec3f dspacePointNow = ofVec3f(spacePointNow.x,spacePointNow.y,spacePointNow.z);
 					ofVec3f dspacePointPre = ofVec3f(spacePointPre.x,spacePointPre.y,spacePointPre.z);
 					ofVec3f minsPoint = (dspacePointPre - dspacePointNow);
 					float b =  minsPoint.dot(spacenormalPre);
-					total_b += b;
+					if(b > 0)
+						total_b += b;
+					else
+						total_bb += b;
 					compute_icp(b,dspacePointNow,spacenormalPre);
 					++dnum;
 				}
 			}
 		}
 	}
-	cout<<"dnum = "<<dnum<<" total_b = "<<total_b<<endl;
+	cout<<"dnum = "<<dnum<<" total_b = "<<total_b<<" total_bb = "<<total_bb<<endl;
 	//cout<<"final a ="<<endl;
 	//cout<<final_A<<endl;
 	//cout<<"final b ="<<endl;
@@ -1032,6 +1047,7 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 	//double deta = final_A.determinant();
 	//if(deta>0) // 条件待修改
 		Eigen::Matrix<float,6,1> result = final_A.llt().solve(final_B).cast<float>();
+		
 	cout<<"result = "<<endl;
 	cout<<result<<endl;
 
@@ -1134,7 +1150,7 @@ void testApp::update() {
 #endif
 			//cv::medianBlur(depthimage,depthimage_filter,5);
 			//clock_t t1=clock();
-			//cv::bilateralFilter(depthimage,depthimage_filter,11,20,20);
+			cv::bilateralFilter(depthimage,depthimage_filter,11,20,20);
 			//clock_t t2=clock();
 			//double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
 			//cout<<ti<<endl;
@@ -1191,34 +1207,36 @@ void testApp::update() {
 			ofMatrix4x4 tk_next = tk;
 			ofVec4f camp=ofVec4f(0,0,0,1);
 			int size_g=TSDF_SIZE;
-			const int maxcountnum = 1;
+			const int maxcountnum = 3;
 			if(countnum < maxcountnum)
 			{
 				//compute_tsdf(tk,depthimage,size_g,camp);
 				++countnum;
 				if(countnum == maxcountnum)
 					test2 = true;
-			}
-			if(test2)
-			{
+			//}
+			//if(test2)
+			//{
 				//cv::imwrite("original.jpg",depthimage_filter);
 				//cout<<tk<<endl;
 				clock_t t1=clock();
-				//compute_points(depthimage_filter,depthimage_filter.rows,depthimage_filter.cols,pointsmap_orignal);
-				//compute_tsdf(tk,depthimage,size_g,camp);
-				//compute_raycast();
+				compute_points(depthimage_filter,depthimage_filter.rows,depthimage_filter.cols,pointsmap_orignal);
+				compute_tsdf(tk_next,depthimage,size_g,camp);
+				compute_raycast(tk_next);
 				compute_normal(pointsmap_orignal,depthimage_filter.rows,depthimage_filter.cols,normalmap_orignal);
-				compute_normal(pointsmap_final,depthimage_filter.rows,depthimage_filter.cols,normalmap_final);
+				//compute_normal(pointsmap_final,depthimage_filter.rows,depthimage_filter.cols,normalmap_final);
 
-				for(int i = 0;i < 15; ++ i)
+				for(int i = 0;i < 10; ++ i)
 				{
 					compute_pda(tk,i,tk_next);
 				}
-				changePosition(tk_next,pointsmap_orignal,normalmap_orignal);
+				camp = tk_next * camp;
+				tk = tk_next;
+				//changePosition(tk_next,pointsmap_orignal,normalmap_orignal);
 				clock_t t2=clock();
 				double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
 				std::cout<<ti<<endl;
-				test2=false;
+				//test2=false;
 			}
 
 			// 转换坐标系为摄像机坐标系与法向
@@ -1358,7 +1376,7 @@ void testApp::drawPointCloud() {
 				for(int x = 0; x < w; x += step) {
 					if(pointsmap_final[y*w+x].z > 0) {
 						mesh.addColor(balck);
-						pointsmap_final[y*w+x].y *= -1;
+						//pointsmap_final[y*w+x].y *= -1;
 						mesh.addVertex(pointsmap_final[y*w+x]*100);
 						mesh.addNormal(normalmap_final[y*w+x]);
 					}
@@ -1425,7 +1443,7 @@ void testApp::drawPointCloud() {
 	ofDrawAxis(100);
 
 	ofScale(1, 1, -1);
-	ofTranslate(0, 0,-650); // center the points a bit
+	ofTranslate(x_back, y_back,z_back); // center the points a bit
 	//ofEnableDepthTest();
 	mesh.drawVertices();
 	if(draww)
@@ -1546,9 +1564,33 @@ void testApp::keyPressed (int key) {
 			if (nearThreshold < 0) nearThreshold = 0;
 			break;
 						
-		case 'd':
+		case 'n':
 			draww=!draww;
 			break;
+
+		case 'w':
+			++ y_back;
+		break;
+
+		case 's':
+			-- y_back;
+		break;
+
+		case 'a':
+			-- x_back;
+		break;
+
+		case 'd':
+			++ x_back;
+		break;
+
+		case 'x':
+			-- z_back;
+		break;
+
+		case 'z':
+			++ z_back;
+		break;
 	}
 }
 

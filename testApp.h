@@ -115,6 +115,9 @@ public:
 
 	ofMatrix3x3 the_K_cam;
 	ofMatrix3x3 invKcam;
+	
+	ofMatrix4x4 camTmatrix;
+	ofVec4f camThePostion;
 
 	ofVec3f normalmap_orignal[325000];
 	ofVec3f normalmap_downonce[90000];

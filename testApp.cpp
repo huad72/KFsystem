@@ -5,7 +5,7 @@
 #define SHORT_DMAX 32767
 
 #define SIZE_TRIDE 0.015625//0.015625
-#define TSDF_SIZE 256 //128
+#define TSDF_SIZE 256 //256
 #define WRONG_DATA 3
 
 #define THRESHOLD_D 0.1 // 要修改
@@ -78,8 +78,9 @@ void testApp::testh()
 	//ofMatrix3x3 ss = getRotationMatrix(tk);
 	//cout<<ss<<endl;
 
-	ofVec3f normal1 = ofVec3f(1,2,3);
-	ofVec3f normal2 = ofVec3f(1,0,0);
+	ofVec3f normal2 = ofVec3f(0,1,0);
+	ofVec3f normal1 = ofVec3f(1,0,0);
+
 	//float angle = normal1.angle(normal2);
 	//cout<<angle<<endl;
 	//compute_icp(5,normal1,normal2);
@@ -92,6 +93,11 @@ void testApp::testh()
 	//Gx<<(Eigen::Matrix3f()<<0,-1,2,1,0,-3,-2,3,0).finished(),
 	//	 Eigen::MatrixXf::Identity(3,3);
 	//cout<<Gx<<endl;
+
+	//float tsdf = 0.97638;
+	//int mixtsdf = max(-SHORT_DMAX,min(SHORT_DMAX,(int)(tsdf*SHORT_DMAX)));
+	//float dtsdf = (float)mixtsdf / SHORT_DMAX;
+	//cout<<dtsdf<<endl;
 }
 //--------------------------文件读取(float，ofVec3f）-----------
 void testApp::readglobalfile(char *filename,float *data)
@@ -320,6 +326,9 @@ void testApp::setup() {
 	std::cout<<invKcam<<endl;
 	//std::cout<<the_K_cam<<std::endl;
 
+	camTmatrix = ofMatrix4x4(1,0,0,0,0,-1,0,0,0,0,1,0,0,0,0,1);
+	camThePostion = ofVec4f(0,0,0,1);
+
 	//m_points=(ofVec3f*)malloc(sizeof(ofVec3f)*245*325);
 	
 	//ofVec3f vec[3][3];
@@ -345,8 +354,8 @@ void testApp::setup() {
 	clock_t t1=clock();
 	//readglobalfile("data.txt",tsdfData);
 	//readglobalfile("0.txt",depth_float);
-	//readFileToArry(pointsmap_orignal,"testdata1.txt");
-	//readFileToArry(pointsmap_final,"testdata1.txt");
+	//readFileToArry("testdata2.txt",pointsmap_orignal);
+	//readFileToArry("testdata1.txt",pointsmap_final);
 	//testTheIcp(pointsmap_orignal,pointsmap_final);
 	clock_t t2=clock();
 	double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
@@ -523,6 +532,9 @@ void testApp::compute_normal(const ofVec3f *vec,const int rows,const int cols,of
 	const ofVec3f *line_one=vec;
 	const ofVec3f *line_two=vec+cols;
 	
+	int num1 = 0;
+	int num2 = 0;
+
 	clock_t t1=clock();
 	for(int i=0;i<rows;i++)
 	{
@@ -544,6 +556,14 @@ void testApp::compute_normal(const ofVec3f *vec,const int rows,const int cols,of
 			{
 				normalmap[num]=normal2.cross(normal1);
 				normalmap[num]=normalmap[num].normalized();
+				//if(normalmap[num].z < 0)
+				//{
+				//	num1++;
+				//}
+				//else
+				//{
+				//	num2++;
+				//}
 			}
 			else
 			{
@@ -562,6 +582,7 @@ void testApp::compute_normal(const ofVec3f *vec,const int rows,const int cols,of
 	}
 	clock_t t2=clock();
 	double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
+	//cout<<num1<<" "<<num2<<endl;
 	//cout<<ti<<endl;
 }
 //--------------------------顶点计算-----------------------------
@@ -603,8 +624,8 @@ void testApp::compute_points(const cv::Mat &depthimage,const int rows,const int 
 				pointsmap[numPostion] = ofVec3f(0.0,0.0,0.0);
 			}
 			// 数据写入文件
-			//if(pointsmap[num2].z<1.8)
-			//	out<<pointsmap[num2].x<<" "<<pointsmap[num2].y<<" "<<pointsmap[num2].z<<" ";
+			//if(pointsmap[numPostion].z<1.8)
+			//	out<<pointsmap[numPostion].x<<" "<<pointsmap[numPostion].y<<" "<<pointsmap[numPostion].z<<" ";
 			//else
 			//{
 			//	out<<0<<" "<<0<<" "<<0<<" ";
@@ -743,7 +764,7 @@ void testApp::compute_tsdf(const ofMatrix4x4 &t_g,cv::Mat &depthimage,const int 
 			{
 				unpack_tsdf(pretsdf,preweight,num);
 				wight = max(128,preweight+nowweight);
-				newtsdf = (pretsdf*preweight+tsdf)/(wight,nowweight);
+				newtsdf = (pretsdf*preweight+tsdf)/(wight + nowweight);
 			}
 			pack_tsdf(newtsdf,wight,num);
 		}
@@ -772,7 +793,7 @@ float getmaxtime(const ofVec3f &dirc,const ofVec3f &orignal)
 }
 void testApp::compute_raycast(const ofMatrix4x4 &tMatrix)
 {
-	ofVec3f LightPosition(0,0,1000);
+	ofVec3f LightPosition(0,0,0);
 	cv::Mat rayimage(KINECT_HEIGHT,KINECT_WIDTH,CV_8UC1);
 
 	float tStep = SIZE_TRIDE*0.8;
@@ -878,17 +899,21 @@ void testApp::compute_raycast(const ofMatrix4x4 &tMatrix)
 						t = rayzero;
 						t.z += SIZE_TRIDE;
 						float Fz2 = triLinary(t);
-						float nz =(Fz2-Fz1);////(SIZE_TRIDE*2);
+						float nz = (Fz2-Fz1);////(SIZE_TRIDE*2);
 
 						ofVec3f n(nx,ny,nz);
 						n = n.normalize();
 						normalmap_final[num] = n;
+						//if(n.z < 0)
 						nnum++;
 					
 						// 生成图像				
 						ofVec3f pp = LightPosition - pointsmap_final[num];
 						pp = pp.normalize();
-						float r = fabs(pp.dot(n));
+						//float r = fabs(pp.dot(n));
+						float r = pp.dot(n);
+						if(r < 0)
+							r = 0;
 						int br = (int)(r*205)+50;
 						br = max((int)0,min(br,255));
 						ptr[i] = br;
@@ -910,7 +935,7 @@ void testApp::compute_raycast(const ofMatrix4x4 &tMatrix)
 		}// for(i)
 	}// for(j)
 	finalPointNum = num;
-	//std::cout<<num<<" "<<nnum<<endl;
+	std::cout<<"raycast generate points = "<<nnum<<endl;
 	cv::imshow("ray",rayimage);
 
 }
@@ -1011,7 +1036,7 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 
 			int num_p = (int)(pointPreU.x+0.5)+(int)(pointPreU.y+0.5)*KINECT_WIDTH;
 			int kk = num;
-			if(pointsmap_final[num_p].z>0)
+			if(num_p < KINECT_HEIGHT*KINECT_WIDTH && pointsmap_final[num_p].z > 0)
 			{
 				ofVec4f pointPre = ofVec4f(pointsmap_final[num_p].x,pointsmap_final[num_p].y,pointsmap_final[num_p].z,1);
 				ofVec4f spacePointPre = pointPre;
@@ -1215,14 +1240,14 @@ void testApp::update() {
 				test3 = false;
 
 				// 试验区
-				ofMatrix4x4 tk=ofMatrix4x4(1,0,0,0,0,-1,0,0,0,0,1,0,0,0,0,1);
-				ofMatrix4x4 tk_next = tk;
-				ofVec4f camp = ofVec4f(0,0,0,1);
+				ofMatrix4x4 tk = camTmatrix;
+				//ofMatrix4x4 tk_next = tk;
+				//ofVec4f camp = ofVec4f(0,0,0,1);
 				int size_g = TSDF_SIZE;
 				const int maxcountnum = 3;
 				if(countnum < maxcountnum)
 				{
-					//compute_tsdf(tk,depthimage,size_g,camp);
+					//compute_tsdf(tk,depthimage,size_g,camThePostion);
 					++ countnum;
 					if(countnum == maxcountnum)
 						test2 = true;
@@ -1233,22 +1258,22 @@ void testApp::update() {
 					//cout<<tk<<endl;
 					clock_t t1=clock();
 					compute_points(depthimage_filter,depthimage_filter.rows,depthimage_filter.cols,pointsmap_orignal);
-					compute_tsdf(tk_next,depthimage,size_g,camp);
-					compute_raycast(tk_next);
+					compute_tsdf(camTmatrix,depthimage,size_g,camThePostion);
+					compute_raycast(camTmatrix);
 					compute_normal(pointsmap_orignal,depthimage_filter.rows,depthimage_filter.cols,normalmap_orignal);
 					//compute_normal(pointsmap_final,depthimage_filter.rows,depthimage_filter.cols,normalmap_final);
 
 					for(int i = 0;i < 10; ++ i)
 					{
-						compute_pda(tk,i,tk_next);
+						compute_pda(tk,i,camTmatrix);
 					}
-					camp = tk_next * camp;
-					tk = tk_next;
+					camThePostion = camTmatrix * camThePostion;
+					//tk = tk_next;
 					//changePosition(tk_next,pointsmap_orignal,normalmap_orignal);
 					clock_t t2=clock();
 					double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
 					std::cout<<ti<<endl;
-					//test2=false;
+					test2=false;
 				}
 
 				// 转换坐标系为摄像机坐标系与法向

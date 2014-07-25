@@ -53,7 +53,8 @@ public:
 	void compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &newTmatrix);
 	void compute_icp(float b,const ofVec3f &spacePoint,const ofVec3f &spaceNormal);
 	void changePosition(const ofMatrix4x4 &changeMatrix,ofVec3f* finalPoints,ofVec3f* finalnorml);
-
+	// Marching cubes
+	void marching_cubes();
 
 	void keyPressed(int key);
 	void mouseDragged(int x, int y, int button);

@@ -4,12 +4,15 @@
 
 #define SHORT_DMAX 32767
 
-#define SIZE_TRIDE 0.015625//0.015625
-#define TSDF_SIZE 256 //256
+#define SIZE_TRIDE 0.03125//0.015625
+#define TSDF_SIZE 128 //256
 #define WRONG_DATA 3
 
 #define THRESHOLD_D 0.1 // 要修改
 #define THRESHOLD_A 20 // 角度，要修改
+
+extern const int triTable[256][16];
+extern const int numVertsTable[256];
 //--------------------------测试使用----------------------------
 void testApp::testh()
 {
@@ -98,6 +101,12 @@ void testApp::testh()
 	//int mixtsdf = max(-SHORT_DMAX,min(SHORT_DMAX,(int)(tsdf*SHORT_DMAX)));
 	//float dtsdf = (float)mixtsdf / SHORT_DMAX;
 	//cout<<dtsdf<<endl;
+	int condex = 0;
+	for( int i = 0; i < 8 ; ++ i )
+	{
+		condex +=  1 << i ;
+	}
+    cout<<condex<<endl;
 }
 //--------------------------文件读取(float，ofVec3f）-----------
 void testApp::readglobalfile(char *filename,float *data)
@@ -724,7 +733,7 @@ void testApp::compute_tsdf(const ofMatrix4x4 &t_g,cv::Mat &depthimage,const int 
 			// 写入文件与存入内存
 			//out<<tsdf<<" ";
 			//tsdfData[num] = tsdf;
-			num++;
+			//num++;
 			if(k==g_size/2+100)
 			{
 				uchar *ptr = color.ptr<uchar>(j);
@@ -767,6 +776,7 @@ void testApp::compute_tsdf(const ofMatrix4x4 &t_g,cv::Mat &depthimage,const int 
 				newtsdf = (pretsdf*preweight+tsdf)/(wight + nowweight);
 			}
 			pack_tsdf(newtsdf,wight,num);
+			num++;
 		}
 	//if(k<=g_size/2)
 	//{
@@ -1106,6 +1116,104 @@ void testApp::compute_pda(const ofMatrix4x4 &preTmatrix,int timeZ,ofMatrix4x4 &n
 	//changePosition(newTmatrix,pointsmap_orignal,normalmap_orignal);
 	//changePosition(newTmatrix,pointsmap_final);
 }
+//--------------------------Marching cubes算法-------------------
+ofVec3f getzeroPosition(float v1,float v2,const ofVec3f &p1,const ofVec3f &p2)
+{
+	float xpostion = v2 * fabs(p2.x - p1.x) / (v2 - v1) + p1.x;
+	float ypostion = v2 * fabs(p2.y - p1.y) / (v2 - v1) + p1.y;
+	float zpostion = v2 * fabs(p2.z - p1.z) / (v2 - v1) + p1.z;
+
+	return ofVec3f(xpostion,ypostion,zpostion);// 返回引用好？
+}
+void testApp::marching_cubes()
+{	
+	int fline_layer = 0;
+	int fline_layer2 = TSDF_SIZE * TSDF_SIZE;
+	ofVec3f startPosition = ofVec3f(-2,-2,0.5);
+
+	float v[8];
+	ofVec3f vectPosition[8];
+	int w[8];
+	int trilist;
+
+	int num = 0;
+	int total = 0;
+
+	int i,j;
+	int condex = 0;
+	while(fline_layer2 < TSDF_SIZE * TSDF_SIZE * TSDF_SIZE - TSDF_SIZE - 1)
+	{
+		++ total;
+		condex = 0;
+		if(fline_layer % TSDF_SIZE != TSDF_SIZE -1)
+		{
+			unpack_tsdf(v[0],w[0],fline_layer);
+			unpack_tsdf(v[1],w[1],fline_layer + 1);
+			unpack_tsdf(v[2],w[2],fline_layer2 + 1);
+			unpack_tsdf(v[3],w[3],fline_layer2);
+			unpack_tsdf(v[4],w[4],fline_layer + TSDF_SIZE);
+			unpack_tsdf(v[5],w[5],fline_layer + TSDF_SIZE + 1);
+			unpack_tsdf(v[6],w[6],fline_layer2 + TSDF_SIZE + 1);
+			unpack_tsdf(v[7],w[7],fline_layer2 + TSDF_SIZE);
+
+			int z_f = fline_layer / (TSDF_SIZE * TSDF_SIZE);
+			int temp = fline_layer % (TSDF_SIZE * TSDF_SIZE);
+			int y_f = temp / TSDF_SIZE;
+			int x_f = temp % TSDF_SIZE;
+
+			vectPosition[0] = ofVec3f(SIZE_TRIDE * x_f,SIZE_TRIDE * y_f,SIZE_TRIDE * z_f) + startPosition;
+			vectPosition[1] = ofVec3f(SIZE_TRIDE * (x_f + 1),SIZE_TRIDE * y_f,SIZE_TRIDE * z_f) + startPosition;
+			vectPosition[2] = ofVec3f(SIZE_TRIDE * (x_f + 1),SIZE_TRIDE * (y_f + 1),SIZE_TRIDE * z_f) + startPosition;
+			vectPosition[3] = ofVec3f(SIZE_TRIDE * x_f,SIZE_TRIDE * (y_f + 1),SIZE_TRIDE * z_f) + startPosition;
+			vectPosition[4] = ofVec3f(SIZE_TRIDE * x_f,SIZE_TRIDE * y_f,SIZE_TRIDE * (z_f + 1)) + startPosition;
+			vectPosition[5] = ofVec3f(SIZE_TRIDE * (x_f + 1),SIZE_TRIDE * y_f,SIZE_TRIDE * (z_f + 1)) + startPosition;
+			vectPosition[6] = ofVec3f(SIZE_TRIDE * (x_f + 1),SIZE_TRIDE * (y_f + 1),SIZE_TRIDE * (z_f + 1)) + startPosition;
+			vectPosition[7] = ofVec3f(SIZE_TRIDE * x_f,SIZE_TRIDE * (y_f + 1),SIZE_TRIDE * (z_f + 1)) + startPosition;
+
+			for( i = 0; i < 8 ; ++ i )
+			{
+				condex += (0 == w[i] ? 0 : (v[i] < 0 ? 1 << i : 0));
+			}
+
+		}		
+		++ fline_layer;
+		++ fline_layer2;
+		if(condex > 0)
+		{
+			int vecnum = numVertsTable[condex];
+			if(vecnum == 0)
+			{
+				//cout<<fline_layer<<endl;
+			}
+			//if(fline_layer < 163840)
+			//cout<< fline_layer <<endl;
+			for( j = 0; j < vecnum ; ++ j)
+			{
+				trilist = triTable[condex][j];
+				ofVec3f zeropoint;
+				if(trilist != 3 && trilist < 7 && trilist >= 0)
+				{
+					zeropoint = getzeroPosition(v[trilist],v[trilist + 1],vectPosition[trilist],vectPosition[trilist + 1]);
+				}
+				else if(trilist == 3 || trilist == 7)
+				{
+					zeropoint = getzeroPosition(v[trilist],v[trilist - 3],vectPosition[trilist],vectPosition[trilist - 3]);
+				}
+				else
+				{
+					zeropoint = getzeroPosition(v[trilist - 8],v[trilist - 4],vectPosition[trilist - 8],vectPosition[trilist - 4]);
+				}
+				if(num % 5 == 0 && num/5 < 320000)
+				{
+					pointsmap_final[num/5] = zeropoint;
+				}
+				++ num;
+			}
+		}
+	}
+	cout<<"num = "<<num<<endl;
+	cout<<"total = "<<total<<endl;
+}
 //---------------------------------------------------------------
 void testApp::update() {
 	ofBackground(100, 100, 100);
@@ -1184,7 +1292,7 @@ void testApp::update() {
 				// 滤波 双边滤波效果没出现（？）
 				//cv::medianBlur(depthimage,depthimage_filter,5);
 				//clock_t t1=clock();
-				cv::bilateralFilter(depthimage,depthimage_filter,11,20,20);
+				//cv::bilateralFilter(depthimage,depthimage_filter,11,20,20);
 				//clock_t t2=clock();
 				//double ti=(double)(t2-t1)/CLOCKS_PER_SEC;
 				//cout<<ti<<endl;
@@ -1244,30 +1352,31 @@ void testApp::update() {
 				//ofMatrix4x4 tk_next = tk;
 				//ofVec4f camp = ofVec4f(0,0,0,1);
 				int size_g = TSDF_SIZE;
-				const int maxcountnum = 3;
+				const int maxcountnum = 1;
 				if(countnum < maxcountnum)
 				{
 					//compute_tsdf(tk,depthimage,size_g,camThePostion);
 					++ countnum;
 					if(countnum == maxcountnum)
 						test2 = true;
-				//}
-				//if(test2)
-				//{
+				}
+				if(test2)
+				{
 					//cv::imwrite("original.jpg",depthimage_filter);
 					//cout<<tk<<endl;
 					clock_t t1=clock();
-					compute_points(depthimage_filter,depthimage_filter.rows,depthimage_filter.cols,pointsmap_orignal);
+					//compute_points(depthimage_filter,depthimage_filter.rows,depthimage_filter.cols,pointsmap_orignal);
 					compute_tsdf(camTmatrix,depthimage,size_g,camThePostion);
-					compute_raycast(camTmatrix);
-					compute_normal(pointsmap_orignal,depthimage_filter.rows,depthimage_filter.cols,normalmap_orignal);
+					marching_cubes();
+					//compute_raycast(camTmatrix);
+					//compute_normal(pointsmap_orignal,depthimage_filter.rows,depthimage_filter.cols,normalmap_orignal);
 					//compute_normal(pointsmap_final,depthimage_filter.rows,depthimage_filter.cols,normalmap_final);
 
-					for(int i = 0;i < 10; ++ i)
-					{
-						compute_pda(tk,i,camTmatrix);
-					}
-					camThePostion = camTmatrix * camThePostion;
+					//for(int i = 0;i < 10; ++ i)
+					//{
+					//	compute_pda(tk,i,camTmatrix);
+					//}
+					//camThePostion = camTmatrix * camThePostion;
 					//tk = tk_next;
 					//changePosition(tk_next,pointsmap_orignal,normalmap_orignal);
 					clock_t t2=clock();
@@ -1377,7 +1486,7 @@ void testApp::drawPointCloud() {
 	//ofMesh mesh;
 	mesh.setMode(OF_PRIMITIVE_POINTS);
 	//mesh.setMode(OF_PRIMITIVE_TRIANGLES);
-	int step = 4;
+	int step = 1;
 	ofColor balck;
 	balck.r=0;
 	balck.g=0;
@@ -1400,16 +1509,16 @@ void testApp::drawPointCloud() {
 			//	mesh.addVertex(of);
 			//}
 
-			for(int y = 0; y < h; y += step) {
-				for(int x = 0; x < w; x += step) {
-					if(pointsmap_orignal[y*w+x].z > 0) {
-						mesh.addColor(balck);
-						//pointsmap_orignal[y*w+x].y *= -1;
-						mesh.addVertex(pointsmap_orignal[y*w+x]*100);
-						mesh.addNormal(normalmap_orignal[y*w+x]);
-					}
-				}
-			}
+			//for(int y = 0; y < h; y += step) {
+			//	for(int x = 0; x < w; x += step) {
+			//		if(pointsmap_orignal[y*w+x].z > 0) {
+			//			mesh.addColor(balck);
+			//			//pointsmap_orignal[y*w+x].y *= -1;
+			//			mesh.addVertex(pointsmap_orignal[y*w+x]*100);
+			//			mesh.addNormal(normalmap_orignal[y*w+x]);
+			//		}
+			//	}
+			//}
 
 			for(int y = 0; y < h; y += step) {
 				for(int x = 0; x < w; x += step) {
@@ -1566,7 +1675,9 @@ void testApp::drawPointCloud() {
 #pragma endregion
 //--------------------------------------------------------------
 void testApp::exit() {
-
+	delete []depth_float;
+	//delete []tsdfData;
+	delete []tsdfWeightData;
 }
 
 //--------------------------------------------------------------
